@@ -673,7 +673,7 @@ void upload_file(AMDeviceRef device) {
 }
 
 
-long get_device_file_size(afc_connection *conn, char *path)
+unsigned long get_device_file_size(afc_connection *conn, char *path)
 {
         afc_dictionary *afc_dict = NULL;
         int ret = AFCFileInfoOpen(conn, path, &afc_dict);
@@ -684,7 +684,7 @@ long get_device_file_size(afc_connection *conn, char *path)
             {
                 if(strcmp(name, "st_size") == 0)
                 {
-                    return atol(val);
+                    return ((unsigned long) atol(val));
                 }
             }
             AFCKeyValueClose(afc_dict);
@@ -707,7 +707,7 @@ void download_file(AMDeviceRef device)
     char *path = malloc(sizeof("/Documents/") + strlen(doc_file_path) + 1);
     strcat(path, "/Documents/");
     strcat(path, doc_file_path);
-    long size = (long)get_device_file_size(afc_conn_p, path);
+    unsigned long size = (long)get_device_file_size(afc_conn_p, path);
     char* content = malloc(size * sizeof(char));
     assert(AFCFileRefOpen(afc_conn_p, path, 2, &file_ref) == 0);
     AFCFileRefRead(afc_conn_p, file_ref,content, &size);
