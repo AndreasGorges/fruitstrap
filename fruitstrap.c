@@ -50,6 +50,7 @@ typedef enum {
     OP_UNINSTALL,
     OP_LIST_DEVICES,
     OP_UPLOAD_FILE,
+    OP_DOWNLOAD_FILE,
     OP_LIST_FILES
 
 } operation_t;
@@ -671,6 +672,55 @@ void upload_file(AMDeviceRef device) {
     free(file_content);
 }
 
+
+long get_device_file_size(afc_connection *conn, char *path)
+{
+        afc_dictionary *afc_dict = NULL;
+        int ret = AFCFileInfoOpen(conn, path, &afc_dict);
+        if(ret == 0 && afc_dict != NULL)
+        {
+            char *name, *val;
+            while(AFCKeyValueRead(afc_dict, &name, &val) == 0 && name != NULL && val != NULL)
+            {
+                if(strcmp(name, "st_size") == 0)
+                {
+                    return atol(val);
+                }
+            }
+            AFCKeyValueClose(afc_dict);
+        }
+    return 0;
+}
+
+void download_file(AMDeviceRef device)
+{
+    service_conn_t houseFd = start_house_arrest_service(device);
+    
+    afc_file_ref file_ref;
+    
+    afc_connection afc_conn;
+    afc_connection* afc_conn_p = &afc_conn;
+    AFCConnectionOpen(houseFd, 0, &afc_conn_p);
+    
+    if (!target_filename)
+        target_filename = doc_file_path;
+    char *path = malloc(sizeof("/Documents/") + strlen(doc_file_path) + 1);
+    strcat(path, "/Documents/");
+    strcat(path, doc_file_path);
+    long size = (long)get_device_file_size(afc_conn_p, path);
+    char* content = malloc(size * sizeof(char));
+    assert(AFCFileRefOpen(afc_conn_p, path, 2, &file_ref) == 0);
+    AFCFileRefRead(afc_conn_p, file_ref,content, &size);
+    assert(AFCFileRefClose(afc_conn_p, file_ref) == 0);
+    assert(AFCConnectionClose(afc_conn_p) == 0);
+    FILE* fd = fopen(target_filename, "w");
+    fwrite(content, size, 1, fd);
+    fclose(fd);
+    free(path);
+    free(content);
+}
+
+
 void do_debug(AMDeviceRef device) {
     CFStringRef path = CFStringCreateWithCString(NULL, app_path, kCFStringEncodingASCII);
 
@@ -750,7 +800,13 @@ void handle_device(AMDeviceRef device) {
         upload_file(device);
 
         PRINT("[100%%] file sent %s\n", doc_file_path);
-
+    } else if (operation == OP_DOWNLOAD_FILE) {
+        PRINT("[  0%%] Found device (%s), dowloading file\n", CFStringGetCStringPtr(found_device_id, CFStringGetSystemEncoding()));
+        
+        download_file(device);
+        
+        PRINT("[100%%] file received %s\n", target_filename);
+        
     } else if (operation == OP_LIST_FILES) {
         PRINT("[  0%%] Found device (%s), listing / ...\n", CFStringGetCStringPtr(found_device_id, CFStringGetSystemEncoding()));
 
@@ -792,6 +848,10 @@ void usage(const char* app) {
     printf ("    * Uploads a file to the documents directory of the app specified with the bundle \n");
     printf ("      identifier (eg com.foo.MyApp) to the specified device, or all attached devices if\n");
     printf ("      none are specified. \n\n");
+    printf ("   download     [--id=device_id] --bundle-id=<bundle id> --file=filename [--target=filename]\n");
+    printf ("    * Downloads a file from the documents directory of the app specified with the bundle \n");
+    printf ("      identifier (eg com.foo.MyApp) to the specified device, or all attached devices if\n");
+    printf ("      none are specified. \n\n");
     printf ("   list-files [--id=device_id] --bundle-id=<bundle id> \n");
     printf ("    * Lists the the files in the app-specific sandbox  specified with the bundle \n");
     printf ("      identifier (eg com.foo.MyApp) on the specified device, or all attached devices if\n");
@@ -805,6 +865,7 @@ bool args_are_valid() {
     return (operation == OP_INSTALL && app_path) ||
     (operation == OP_UNINSTALL && bundle_id) ||
     (operation == OP_UPLOAD_FILE && bundle_id && doc_file_path) ||
+    (operation == OP_DOWNLOAD_FILE && bundle_id && doc_file_path) ||
     (operation == OP_LIST_FILES && bundle_id) ||
     (operation == OP_LIST_DEVICES);
 }
@@ -882,6 +943,8 @@ int main(int argc, char *argv[]) {
         operation = OP_LIST_DEVICES;
     } else if (strcmp (argv [optind], "upload") == 0) {
         operation = OP_UPLOAD_FILE;
+    } else if (strcmp (argv [optind], "download") == 0) {
+        operation = OP_DOWNLOAD_FILE;
     } else if (strcmp (argv [optind], "list-files") == 0) {
         operation = OP_LIST_FILES;
     } else {
