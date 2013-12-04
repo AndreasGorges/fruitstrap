@@ -27,6 +27,11 @@ Commands available:
   Uploads a file to the documents directory of the app specified with the bundle
   identifier (eg com.foo.MyApp) to the specified device, or all attached devices if
   none are specified.
+  
+* `download     [--id=device_id] --bundle-id=<bundle id> --file=device-filename [--target=local-filename]`
+  Downloads a file from the documents directory of the app specified with the bundle
+  identifier (eg com.foo.MyApp) for the specified device, or all attached devices if
+  none are specified.
 
 * `list-files [--id=device_id] --bundle-id=<bundle id>`
   Lists the the files in the app-specific sandbox  specified with the bundle
